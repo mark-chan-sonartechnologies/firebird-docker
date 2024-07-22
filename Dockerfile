@@ -4,7 +4,7 @@ LABEL maintainer="jacob.alberty@foundigital.com"
 ENV PREFIX=/usr/local/firebird
 ENV VOLUME=/firebird
 ENV DEBIAN_FRONTEND noninteractive
-ENV FBURL=https://github.com/FirebirdSQL/firebird/releases/download/R2_5_9/Firebird-2.5.9.27139-0.tar.bz2
+ENV FBURL=https://sourceforge.net/projects/firebird/files/firebird-linux-amd64/2.1.7-Release/FirebirdCS-2.1.7.18553-0.amd64.tar.gz
 ENV DBPATH=/firebird/data
 ENV ICU_URL=https://github.com/unicode-org/icu/releases/download/release-52-2/icu4c-52_2-src.tgz
 
@@ -31,9 +31,9 @@ RUN apt-get update && \
         rm -rf /home/icu && \
     mkdir -p /home/firebird && \
     cd /home/firebird && \
-    curl -L -o firebird-source.tar.bz2 -L \
+    curl -L -o firebird-source.tar.gz -L \
         "${FBURL}" && \
-    tar --strip=1 -xf firebird-source.tar.bz2 && \
+    tar --strip=1 -zxf firebird-source.tar.gz && \
     ./configure \
         --prefix=${PREFIX} --with-fbbin=${PREFIX}/bin --with-fbsbin=${PREFIX}/bin --with-fblib=${PREFIX}/lib \
         --with-fbinclude=${PREFIX}/include --with-fbdoc=${PREFIX}/doc --with-fbudf=${PREFIX}/UDF \
