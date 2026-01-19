@@ -1,81 +1,51 @@
-FROM debian:bullseye-slim
-LABEL maintainer="jacob.alberty@foundigital.com"
+FROM ubuntu:22.04
+LABEL Maintainer="Mark Chan <mark.chan@sonartechnologies.com>"
+LABEL Firebird="2.1.7-classic"
 
-ENV PREFIX=/usr/local/firebird
-ENV VOLUME=/firebird
-ENV DEBIAN_FRONTEND noninteractive
-ENV FBURL=https://sourceforge.net/projects/firebird/files/firebird-linux-amd64/2.1.7-Release/FirebirdCS-2.1.7.18553-0.amd64.tar.gz
-ENV DBPATH=/firebird/data
-ENV ICU_URL=https://github.com/unicode-org/icu/releases/download/release-52-2/icu4c-52_2-src.tgz
-
-RUN apt-get update && \
-    apt-get install -qy --no-install-recommends \
-        bzip2 \
-        ca-certificates \
-        curl \
-        g++ \
-        gcc \
-        libncurses5-dev \
-        make \
-        netbase \
-        procps && \
-        mkdir -p /home/icu && \
-        cd /home/icu && \
-        curl -L -o icu4c.tar.gz -L "${ICU_URL}" && \
-        tar --strip=1 -xf icu4c.tar.gz && \
-        cd source && \
-        ./configure --prefix=/usr && \
-        make -j$(awk '/^processor/{n+=1}END{print n}' /proc/cpuinfo) && \
-        make install && \
-        cd / && \
-        rm -rf /home/icu && \
-    mkdir -p /home/firebird && \
-    cd /home/firebird && \
-    curl -L -o firebird-source.tar.gz -L \
-        "${FBURL}" && \
-    tar --strip=1 -zxf firebird-source.tar.gz && \
-    ./configure \
-        --prefix=${PREFIX} --with-fbbin=${PREFIX}/bin --with-fbsbin=${PREFIX}/bin --with-fblib=${PREFIX}/lib \
-        --with-fbinclude=${PREFIX}/include --with-fbdoc=${PREFIX}/doc --with-fbudf=${PREFIX}/UDF \
-        --with-fbsample=${PREFIX}/examples --with-fbsample-db=${PREFIX}/examples/empbuild --with-fbhelp=${PREFIX}/help \
-        --with-fbintl=${PREFIX}/intl --with-fbmisc=${PREFIX}/misc --with-fbplugins=${PREFIX} \
-        --with-fblog=${VOLUME}/log --with-fbglock=/var/firebird/run \
-        --with-fbconf=${VOLUME}/etc --with-fbmsg=${PREFIX} \
-        --with-fbsecure-db=${VOLUME}/system --with-system-icu &&\
-    make && \
-    make silent_install && \
-    cd / && \
-    rm -rf /home/firebird && \
-    find ${PREFIX} -name .debug -prune -exec rm -rf {} \; && \
-    apt-get purge -qy --auto-remove \
-        libncurses5-dev \
-        bzip2 \
-        ca-certificates \
-        curl \
-        gcc \
-        g++ \
-        make && \
-    rm -rf /var/lib/apt/lists/* && \
-    mkdir -p "${PREFIX}/skel" && \
-    mv ${VOLUME}/system/security2.fdb ${PREFIX}/skel/security2.fdb && \
-    mv "${VOLUME}/etc" "${PREFIX}/skel"
+ENV FIREBIRD_PATH=/opt/firebird
+ENV FIREBIRD_DATA_PATH=/home/firebird
+ENV FIREBIRD_DB_PASSWORD=masterkey
+ENV FIREBIRD_DB_PASSWORD_DEFAULT=masterkey
 
 
-VOLUME ["/firebird"]
+RUN apt-get update
+RUN apt-get install wget -y
+RUN apt-get install libstdc++5 -y
+RUN apt-get install xinetd -y
+RUN apt-get install libncurses5 -y
+RUN DEBIAN_FRONTEND=noninteractive apt-get install tzdata -y
+RUN wget http://sourceforge.net/projects/firebird/files/firebird-linux-amd64/2.1.7-Release/FirebirdCS-2.1.7.18553-0.amd64.tar.gz
+RUN tar -vzxf FirebirdCS-2.1.7.18553-0.amd64.tar.gz
+RUN rm FirebirdCS-2.1.7.18553-0.amd64.tar.gz
+RUN rm FirebirdCS-2.1.7.18553-0.amd64/install.sh
+RUN rm FirebirdCS-2.1.7.18553-0.amd64/scripts/postinstall.sh
+
+#ENV TZ="Australia/Sydney"
+#RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+COPY install.sh FirebirdCS-2.1.7.18553-0.amd64
+COPY postinstall.sh FirebirdCS-2.1.7.18553-0.amd64/scripts
+
+RUN cd FirebirdCS-2.1.7.18553-0.amd64 && ./install.sh ${FIREBIRD_DB_PASSWORD_DEFAULT}
+RUN rm -r FirebirdCS-2.1.7.18553-0.amd64
+
+COPY fbudflib2.so ${FIREBIRD_PATH}/UDF
+COPY entrypoint.sh ${FIREBIRD_PATH}
+
+#RUN cd ${FIREBIRD_PATH} && mkdir DBA && chown firebird:firebird DBA && chmod -R 770 DBA
+RUN cd ${FIREBIRD_PATH} && chmod +x entrypoint.sh
+#RUN cd / && mkdir dba && chown firebird:firebird dba && chmod -R 770 dba && touch /dba/abcde
+RUN mkdir -p ${FIREBIRD_DATA_PATH} && chown firebird:firebird ${FIREBIRD_DATA_PATH} && chmod -R 770 ${FIREBIRD_DATA_PATH}
+
+RUN echo >> /etc/bash.bashrc && echo alias l='"ls -l"' >> /etc/bash.bashrc
+RUN echo >> /root/.bashrc && echo alias l='"ls -l"' >> /root/.bashrc
+
+VOLUME ["/home/firebird"]
+#VOLUME ["/dba"]
+#VOLUME ["/opt/firebird"]
+
 
 EXPOSE 3050/tcp
 
-COPY docker-entrypoint.sh ${PREFIX}/docker-entrypoint.sh
-RUN chmod +x ${PREFIX}/docker-entrypoint.sh
-
-COPY docker-healthcheck.sh ${PREFIX}/docker-healthcheck.sh
-RUN chmod +x ${PREFIX}/docker-healthcheck.sh \
-    && apt-get update \
-    && apt-get -qy install netcat \
-    && rm -rf /var/lib/apt/lists/*
-HEALTHCHECK CMD ${PREFIX}/docker-healthcheck.sh || exit 1
-
-ENTRYPOINT ["/usr/local/firebird/docker-entrypoint.sh"]
-
-CMD ["/usr/local/firebird/bin/fbguard"]
-
+WORKDIR ${FIREBIRD_PATH}
+ENTRYPOINT ${FIREBIRD_PATH}/entrypoint.sh 
