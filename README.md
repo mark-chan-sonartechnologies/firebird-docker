@@ -16,4 +16,5 @@ There is a shared volume /home/firebird.
 2 files have been linked to files in the shared volume so you can edit from the host system:
 
 /opt/firebird/aliases.conf -> /home/firebird/config/aliases.conf
+
 /opt/firebird/security2.fdb -> /home/firebird/config/security2.fdb
